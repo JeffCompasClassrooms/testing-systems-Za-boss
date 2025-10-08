@@ -13,10 +13,12 @@ def base_setup():
 
     squirrel_response = requests.get(SERVER_URL)
 
+    assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
     squirrels = squirrel_response.json()
     for i in range(len(squirrels) - 1, len(squirrels)):
         squirrel = squirrels[i]
-        requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+        delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+        assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
 @pytest.fixture
 def base_setup_two_squirrels():
     base_data = [{"name": "chippy", "size": "large"}, {'name': 'charles', 'size': 'british'}]
@@ -29,10 +31,12 @@ def base_setup_two_squirrels():
 
     squirrel_response = requests.get(SERVER_URL)
 
+    assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
     squirrels = squirrel_response.json()
     for i in range(len(squirrels) - 2, len(squirrels)):
         squirrel = squirrels[i]
-        requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+        delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+        assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
 
 def describe_squirrel_server_functionality():
     def describe_handle_squirrels_index_functionality():
@@ -47,59 +51,179 @@ def describe_squirrel_server_functionality():
         def it_sends_squirrels_list(base_setup_two_squirrels):
             response = requests.get(SERVER_URL)
             data = response.json()
-            assert data == [{'id' : 1,  'name': 'zippy', 'size': 'small'}, {'id' : 2,  'name': 'chippy', 'size': 'large'}, {'id': 3, 'name': 'charles', 'size': 'british'}]
+            for i in range(len(data) - 2, len(data)):
+                squirrel = data[i]
+                assert squirrel['name'] in ['chippy', 'charles']
+                assert squirrel['size'] in ['large', 'british']
             #I need to look into how responses are returned from the server
     def describe_handle_squirrels_retrieve_functionality():
         def it_returns_200_on_good_request():
-            pass
+            response = requests.get(f'{SERVER_URL}/1')
+
+            assert response.status_code == 200
         def it_returns_correct_headers():
-            pass
+            response = requests.get(f'{SERVER_URL}/1')
+
+            assert response.headers['Content-Type'] == "application/json"
         def it_returns_a_single_squirrel():
-            pass
+            response = requests.get(f'{SERVER_URL}/1')
+            data = response.json()
+
+            assert data == {'id': 1, 'name': 'zippy', 'size' : 'small'}
+            #idk if this test is correct bcz assuming that the initial entry is this
         def it_returns_404_on_malformed_url_request():
-            pass
+            response = requests.get(f'{SERVER_URL}s/1')
+
+            assert response.status_code == 404
         def it_returns_404_on_malformed_id_request():
-            pass
+            response = requests.get(f'{SERVER_URL}/402')
+
+            assert response.status_code == 404
     def describe_handle_squirrels_create_functionality():
         def it_returns_201_success_code():
-            pass
+            data = {"name": "bob", "size": "human"}
+            response = requests.post(SERVER_URL, data=data)
+
+            assert response.status_code == 201
+
+            squirrels_request = requests.get(SERVER_URL)
+
+            assert squirrels_request.status_code == 200, "Error getting squirrels to teardown in squirrel creation"
+
+            squirrels = squirrels_request.json()
+
+            for i in range(len(squirrels) - 1, len(squirrels)):
+                squirrel = squirrels[i]
+                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
+
         def it_returns_correct_headers():
-            pass
+            data = {"name": "bob", "size": "human"}
+            response = requests.post(SERVER_URL, data=data)
+            assert "Content-Type" not in response.headers
+
+            squirrels_request = requests.get(SERVER_URL)
+
+            assert squirrels_request.status_code == 200, "Error getting squirrels to teardown in squirrel creation"
+
+            squirrels = squirrels_request.json()
+
+            for i in range(len(squirrels) - 1, len(squirrels)):
+                squirrel = squirrels[i]
+                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
         def it_actually_creates_the_squirrel():
-            pass
+            data = {"name": "bob", "size": "human"}
+            response = requests.post(SERVER_URL, data=data)
+
+            squirrels_request = requests.get(SERVER_URL)
+
+            assert squirrels_request.status_code == 200, "Error getting squirrels to teardown in squirrel creation"
+
+            squirrels = squirrels_request.json()
+
+            for i in range(len(squirrels) - 1, len(squirrels)):
+                squirrel = squirrels[i]
+                assert squirrel['name'] == 'bob'
+                assert squirrel['size'] == 'human'
+                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
     def describe_handle_squirrels_update_functionality():
-        def it_returns_204_on_good_request():
-            pass
-        def it_actually_updates_the_squirrel():
-            pass
-        def it_returns_correct_headers():
-            pass
-        def it_returns_404_on_malformed_url_request():
-            pass
-        def it_returns_404_on_malformed_id_request():
-            pass
+        def it_returns_204_on_good_request(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            updated_squirrel = {"name": "jimmy", "size": "tiny"}
+            update_request = requests.put(f'{SERVER_URL}/{squirrel['id']}', data=updated_squirrel)
+
+            assert update_request.status_code == 204
+        def it_actually_updates_the_squirrel(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+            
+            updated_squirrel = {"name": "jimmy", "size": "tiny"}
+            update_request = requests.put(f'{SERVER_URL}/{squirrel['id']}', data=updated_squirrel)
+
+            assert update_request.status_code == 204
+        def it_returns_correct_headers(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+            
+            updated_squirrel = {"name": "jimmy", "size": "tiny"}
+            update_request = requests.put(f'{SERVER_URL}/{squirrel['id']}', data=updated_squirrel)
+
+            assert "Content-Type" not in update_request.headers
+        def it_returns_404_on_malformed_url_request(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+            
+            updated_squirrel = {"name": "jimmy", "size": "tiny"}
+            update_request = requests.put(f'{SERVER_URL}s/{squirrel['id']}', data=updated_squirrel)
+
+            assert update_request.status_code == 404
+        def it_returns_404_on_malformed_id_request(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+            
+            updated_squirrel = {"name": "jimmy", "size": "tiny"}
+            update_request = requests.put(f'{SERVER_URL}s/{squirrel['id'] + 200}', data=updated_squirrel)
+
+            assert update_request.status_code == 404
     def describe_handle_squirrels_delete_functionality():
         def it_returns_204_on_good_request():
-            pass
+            new_squirrel = {"name": "bill", "size": "lumberjack"}
+            requests.post(SERVER_URL, data=new_squirrel)
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            delete_request = requests.delete(f'{SERVER_URL}/{squirrel['id']}')
+
+            assert delete_request.status_code == 204
         def it_actually_deletes_the_squirrel():
-            pass
+            new_squirrel = {"name": "bill", "size": "lumberjack"}
+            requests.post(SERVER_URL, data=new_squirrel)
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            delete_request = requests.delete(f'{SERVER_URL}/{squirrel['id']}')
+
+            post_delete_squirrels = requests.get(SERVER_URL)
+
+            for squirrel in post_delete_squirrels.json():
+                assert squirrel['name'] != "bill" and squirrel['size'] != "lumberjack"
         def it_returns_correct_headers():
-            pass
-        def it_returns_404_on_malformed_url_request():
-            pass
-        def it_returns_404_on_malformed_id_request():
-            pass
+            new_squirrel = {"name": "bill", "size": "lumberjack"}
+            requests.post(SERVER_URL, data=new_squirrel)
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            delete_request = requests.delete(f'{SERVER_URL}/{squirrel['id']}')
+
+            assert "Content-Type" not in delete_request.headers
+        def it_returns_404_on_malformed_url_request(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            delete_request = requests.delete(f'{SERVER_URL}s/{squirrel['id']}')
+
+            assert delete_request.status_code == 404
+        def it_returns_404_on_malformed_id_request(base_setup):
+            existing_squirrels = requests.get(SERVER_URL)
+            squirrel = existing_squirrels.json()[-1]
+
+            delete_request = requests.delete(f'{SERVER_URL}s/{squirrel['id'] + 200}')
+
+            assert delete_request.status_code == 404
     def describe_handle_404_functionaltiy():
         def it_returns_404_on_malformed_url_request():
-            pass
-        def it_returns_404_on_malformed_id_request():
-            pass
-        def it_returns_correct_headers():
-            pass
-"""
-response = requests.get("http://localhost:8080/squirrels")
+            request = requests.get(f'{SERVER_URL}ss')
 
-print(response.status_code)
-print(response.headers)
-print(response.text[:200])
-"""
+            assert request.status_code == 404
+        def it_returns_404_on_malformed_id_request():
+            request = requests.get(f'{SERVER_URL}/-1')
+
+            assert request.status_code == 404
+        def it_returns_correct_headers():
+            request = requests.get(f'{SERVER_URL}ss')
+
+            assert request.headers['Content-Type'] == "text/plain"
