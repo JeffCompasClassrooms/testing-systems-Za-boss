@@ -15,10 +15,10 @@ def base_setup():
 
     assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
     squirrels = squirrel_response.json()
-    for i in range(len(squirrels) - 1, len(squirrels)):
-        squirrel = squirrels[i]
-        delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-        assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
+    
+    squirrel = squirrels[len(squirrels) - 1]
+    delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+    assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
 @pytest.fixture
 def base_setup_two_squirrels():
     base_data = [{"name": "chippy", "size": "large"}, {'name': 'charles', 'size': 'british'}]
@@ -92,10 +92,9 @@ def describe_squirrel_server_functionality():
 
             squirrels = squirrels_request.json()
 
-            for i in range(len(squirrels) - 1, len(squirrels)):
-                squirrel = squirrels[i]
-                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
+            squirrel = squirrels[len(squirrels) - 1]
+            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
 
         def it_returns_correct_headers():
             data = {"name": "bob", "size": "human"}
@@ -108,10 +107,10 @@ def describe_squirrel_server_functionality():
 
             squirrels = squirrels_request.json()
 
-            for i in range(len(squirrels) - 1, len(squirrels)):
-                squirrel = squirrels[i]
-                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
+
+            squirrel = squirrels[len(squirrels) - 1]
+            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
         def it_actually_creates_the_squirrel():
             data = {"name": "bob", "size": "human"}
             response = requests.post(SERVER_URL, data=data)
@@ -122,12 +121,11 @@ def describe_squirrel_server_functionality():
 
             squirrels = squirrels_request.json()
 
-            for i in range(len(squirrels) - 1, len(squirrels)):
-                squirrel = squirrels[i]
-                assert squirrel['name'] == 'bob'
-                assert squirrel['size'] == 'human'
-                delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-                assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
+            squirrel = squirrels[len(squirrels) - 1]
+            assert squirrel['name'] == 'bob'
+            assert squirrel['size'] == 'human'
+            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
+            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
     def describe_handle_squirrels_update_functionality():
         def it_returns_204_on_good_request(base_setup):
             existing_squirrels = requests.get(SERVER_URL)
