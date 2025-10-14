@@ -55,7 +55,6 @@ def describe_squirrel_server_functionality():
                 squirrel = data[i]
                 assert squirrel['name'] in ['chippy', 'charles']
                 assert squirrel['size'] in ['large', 'british']
-            #I need to look into how responses are returned from the server
     def describe_handle_squirrels_retrieve_functionality():
         def it_returns_200_on_good_request():
             response = requests.get(f'{SERVER_URL}/1')
@@ -65,12 +64,15 @@ def describe_squirrel_server_functionality():
             response = requests.get(f'{SERVER_URL}/1')
 
             assert response.headers['Content-Type'] == "application/json"
-        def it_returns_a_single_squirrel():
-            response = requests.get(f'{SERVER_URL}/1')
+        def it_returns_a_single_squirrel(base_setup):
+            squirrels = requests.get(SERVER_URL).json()
+
+            response = requests.get(f'{SERVER_URL}/{len(squirrels)}')
             data = response.json()
 
-            assert data == {'id': 1, 'name': 'zippy', 'size' : 'small'}
-            #idk if this test is correct bcz assuming that the initial entry is this
+            assert (
+                data["name"] == "chippy" and data["size"] == "large"
+                ) 
         def it_returns_404_on_malformed_url_request():
             response = requests.get(f'{SERVER_URL}s/1')
 
