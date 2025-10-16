@@ -1,6 +1,73 @@
-import requests
+import http.client
+import json
+import os
 import pytest
+import shutil
+import subprocess
+import time
+import urllib
+import requests
+import sys
+import signal
+from squirrel_db import SquirrelDB
+
+
 SERVER_URL = "http://localhost:8080/squirrels"
+
+def kill_existing_server():
+    try:
+        subprocess.run(["fuser", "-k", "8080/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except FileNotFoundError:
+        subprocess.run("lsof -t -i:8080 | xargs kill -9", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+@pytest.fixture(autouse=True)
+def setup_database():
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    empty_db = os.path.join(base_dir, "empty_squirrel_db.db")
+    target_db = os.path.join(base_dir, "squirrel_db.db")
+
+    if os.path.exists(target_db):
+        os.remove(target_db)
+    shutil.copy(empty_db, target_db)
+    yield
+
+@pytest.fixture(scope="session", autouse=True)
+def manage_server_starting():
+    kill_existing_server()
+    time.sleep(.5)
+    try:
+        requests.get(SERVER_URL, timeout=1)
+        print("Squirrel server already running")
+        yield
+        return
+    except requests.ConnectionError:
+        pass
+
+    server_process = subprocess.Popen(
+        [sys.executable, "squirrel_server.py"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        preexec_fn=os.setsid
+    )
+
+    for _ in range(10):
+        try:
+            r = requests.get(SERVER_URL, timeout=1)
+            if r.status_code == 200:
+                print("Squirrel server started successfully")
+                break
+        except requests.ConnectionError:
+            time.sleep(0.5)
+    else:
+        server_process.terminate()
+        pytest.fail("Failed to start squirrel server.")
+    yield
+
+    print("Stopping squirrel server")
+    try:
+        os.killpg(os.getpgid(server_process.pid), signal.SIGTERM)
+    except ProcessLookupError:
+        pass
 
 @pytest.fixture
 def base_setup():
@@ -10,15 +77,6 @@ def base_setup():
     assert response.status_code == 201, f"Creation failed: {response.text}"
 
     yield
-
-    squirrel_response = requests.get(SERVER_URL)
-
-    assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
-    squirrels = squirrel_response.json()
-    
-    squirrel = squirrels[len(squirrels) - 1]
-    delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-    assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
 @pytest.fixture
 def base_setup_two_squirrels():
     base_data = [{"name": "chippy", "size": "large"}, {'name': 'charles', 'size': 'british'}]
@@ -33,10 +91,6 @@ def base_setup_two_squirrels():
 
     assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
     squirrels = squirrel_response.json()
-    for i in range(len(squirrels) - 2, len(squirrels)):
-        squirrel = squirrels[i]
-        delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-        assert delete_response.status_code == 204, f"Deleting squirrels during setup failed: {delete_response.text}"
 
 def describe_squirrel_server_functionality():
     def describe_handle_squirrels_index_functionality():
@@ -51,16 +105,16 @@ def describe_squirrel_server_functionality():
         def it_sends_squirrels_list(base_setup_two_squirrels):
             response = requests.get(SERVER_URL)
             data = response.json()
-            for i in range(len(data) - 2, len(data)):
+            for i in range(len(data)):
                 squirrel = data[i]
                 assert squirrel['name'] in ['chippy', 'charles']
                 assert squirrel['size'] in ['large', 'british']
     def describe_handle_squirrels_retrieve_functionality():
-        def it_returns_200_on_good_request():
+        def it_returns_200_on_good_request(base_setup):
             response = requests.get(f'{SERVER_URL}/1')
 
             assert response.status_code == 200
-        def it_returns_correct_headers():
+        def it_returns_correct_headers(base_setup):
             response = requests.get(f'{SERVER_URL}/1')
 
             assert response.headers['Content-Type'] == "application/json"
@@ -88,31 +142,11 @@ def describe_squirrel_server_functionality():
 
             assert response.status_code == 201
 
-            squirrels_request = requests.get(SERVER_URL)
-
-            assert squirrels_request.status_code == 200, "Error getting squirrels to teardown in squirrel creation"
-
-            squirrels = squirrels_request.json()
-
-            squirrel = squirrels[len(squirrels) - 1]
-            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
-
         def it_returns_correct_headers():
             data = {"name": "bob", "size": "human"}
             response = requests.post(SERVER_URL, data=data)
             assert "Content-Type" not in response.headers
 
-            squirrels_request = requests.get(SERVER_URL)
-
-            assert squirrels_request.status_code == 200, "Error getting squirrels to teardown in squirrel creation"
-
-            squirrels = squirrels_request.json()
-
-
-            squirrel = squirrels[len(squirrels) - 1]
-            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
         def it_actually_creates_the_squirrel():
             data = {"name": "bob", "size": "human"}
             response = requests.post(SERVER_URL, data=data)
@@ -126,8 +160,6 @@ def describe_squirrel_server_functionality():
             squirrel = squirrels[len(squirrels) - 1]
             assert squirrel['name'] == 'bob'
             assert squirrel['size'] == 'human'
-            delete_response = requests.delete(f"{SERVER_URL}/{squirrel['id']}")
-            assert delete_response.status_code == 204, f"Deleting squirrels during creation teardown failed: {delete_response.text}"
     def describe_handle_squirrels_update_functionality():
         def it_returns_204_on_good_request(base_setup):
             existing_squirrels = requests.get(SERVER_URL)
@@ -214,7 +246,7 @@ def describe_squirrel_server_functionality():
             delete_request = requests.delete(f'{SERVER_URL}s/{squirrel['id'] + 200}')
 
             assert delete_request.status_code == 404
-    def describe_handle_404_functionaltiy():
+    def describe_handle_404_functionality():
         def it_returns_404_on_malformed_url_request():
             request = requests.get(f'{SERVER_URL}ss')
 
