@@ -87,11 +87,6 @@ def base_setup_two_squirrels():
 
     yield
 
-    squirrel_response = requests.get(SERVER_URL)
-
-    assert squirrel_response.status_code == 200, f"Retrieving squirrels failed: {squirrel_response.text}"
-    squirrels = squirrel_response.json()
-
 def describe_squirrel_server_functionality():
     def describe_handle_squirrels_index_functionality():
         def it_returns_200_success_code():
