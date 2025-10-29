@@ -12,13 +12,13 @@ import signal
 from squirrel_db import SquirrelDB
 
 
-SERVER_URL = "http://localhost:8080/squirrels"
+SERVER_URL = "http://localhost:8081/squirrels"
 
 def kill_existing_server():
     try:
-        subprocess.run(["fuser", "-k", "8080/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run(["fuser", "-k", "8081/tcp"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except FileNotFoundError:
-        subprocess.run("lsof -t -i:8080 | xargs kill -9", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        subprocess.run("lsof -t -i:8081 | xargs kill -9", shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 @pytest.fixture(autouse=True)
 def setup_database():
