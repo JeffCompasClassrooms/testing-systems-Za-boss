@@ -155,6 +155,13 @@ def describe_squirrel_server_functionality():
             squirrel = squirrels[len(squirrels) - 1]
             assert squirrel['name'] == 'bob'
             assert squirrel['size'] == 'human'
+        def it_returns_400_on_bad_post():
+            data = {"name": "bob", "size": None}
+            response = requests.post(SERVER_URL, data=data)
+
+            squirrels_request = requests.get(SERVER_URL)
+
+            assert squirrels_request.status_code == 400, "Error in getting correct response on post request"
     def describe_handle_squirrels_update_functionality():
         def it_returns_204_on_good_request(base_setup):
             existing_squirrels = requests.get(SERVER_URL)
