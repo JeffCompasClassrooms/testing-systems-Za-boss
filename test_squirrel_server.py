@@ -159,9 +159,7 @@ def describe_squirrel_server_functionality():
             data = {"name": "bob", "size": None}
             response = requests.post(SERVER_URL, data=data)
 
-            squirrels_request = requests.get(SERVER_URL)
-
-            assert squirrels_request.status_code == 400, "Error in getting correct response on post request"
+            assert response.status_code == 400, "Error in getting correct response on post request"
     def describe_handle_squirrels_update_functionality():
         def it_returns_204_on_good_request(base_setup):
             existing_squirrels = requests.get(SERVER_URL)
@@ -203,6 +201,11 @@ def describe_squirrel_server_functionality():
             update_request = requests.put(f'{SERVER_URL}s/{squirrel['id'] + 200}', data=updated_squirrel)
 
             assert update_request.status_code == 404
+        def it_returns_400_on_bad_post():
+            data = {"name": "bob", "size": None}
+            response = requests.post(SERVER_URL, data=data)
+
+            assert response.status_code == 400, "Error in getting correct response on post request"
     def describe_handle_squirrels_delete_functionality():
         def it_returns_204_on_good_request():
             new_squirrel = {"name": "bill", "size": "lumberjack"}
