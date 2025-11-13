@@ -7,7 +7,8 @@ on:
   pull_request:
     branches:
       - main
-
+  repository_dispatch:
+    - [run_tests]
 jobs:
   test:
     runs-on: ubuntu-latest
